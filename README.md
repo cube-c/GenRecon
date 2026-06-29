@@ -27,7 +27,7 @@ We introduce a new approach to high-fidelity 3D scene reconstruction from multi-
 
 ✅ Paper release (22.05.2026)   
 ✅ Code release (29.06.2026)  
-🔜 Checkpoint release (coming soon)  
+✅ Checkpoint release (29.06.2026)  
 
 ## 🛠️ Installation
 
@@ -92,6 +92,17 @@ possible. Please refer to the respective sources for licensing and download inst
 re-releases (e.g. [this one](https://huggingface.co/datasets/huanngzh/3D-Front)) should
 work similarly.
 
+## 📦 Pretrained Weights
+
+We provide finetuned checkpoints for the 3 generative models. Please refer to [https://kaldir.vc.cit.tum.de/genrecon/README.md](https://kaldir.vc.cit.tum.de/genrecon/README.md) for download instructions. Alternatively, just run:
+
+```sh
+wget https://kaldir.vc.cit.tum.de/genrecon/sparse_structure.pt
+wget https://kaldir.vc.cit.tum.de/genrecon/shape_slat.pt
+wget https://kaldir.vc.cit.tum.de/genrecon/texture_slat.pt
+```
+
+
 ## 🏋️ Training
 
 ### Data Preparation
@@ -134,7 +145,7 @@ python train.py \
 
 ## 🚀 Inference
 
-Make sure you have downloaded the checkpoints!
+Make sure you have downloaded the checkpoints or trained the models yourself.
 
 ### Reconstruct ScanNet++ scenes
 ```sh
