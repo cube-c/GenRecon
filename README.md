@@ -191,6 +191,21 @@ python chunked_to_glb.py \
     --output_dir "${OUT_DIR}"
 ```
 
+For a smaller GLB intended for browser viewers, run the same conversion with
+`--viewer`. This writes `scene_viewer.glb` alongside the full-quality file and
+uses a separate chunk cache. The preset limits each chunk to 100,000 faces and
+uses 1024px textures and remesh resolution 1024:
+```sh
+python chunked_to_glb.py \
+    --inputs "${OUT_DIR}/to_glb_inputs.pt" \
+    --chunk_inputs "${OUT_DIR}/chunk_inputs.pt" \
+    --output_dir "${OUT_DIR}" \
+    --viewer
+```
+
+You can override either viewer default, for example with
+`--simplify_threshold 250000 --texture_size 2048` for higher quality.
+
 
 ## 🙏 Acknowledgements
 

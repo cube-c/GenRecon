@@ -4,6 +4,9 @@ Run chunked GLB conversion on saved reconstruct_scene outputs.
 Loads to_glb_inputs.pt + chunk_inputs.pt produced by reconstruct_scene.py,
 runs global remesh + per-chunk bake, writes a multi-primitive scene.glb.
 
+Pass --viewer to use a lighter browser-viewer preset and write
+scene_viewer.glb without replacing the full-quality scene.glb.
+
 Usage:
     python chunked_to_glb.py \
         --inputs path/to/to_glb_inputs.pt \
@@ -31,9 +34,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inputs", required=True, help="Path to to_glb_inputs.pt")
     parser.add_argument("--chunk_inputs", required=True, help="Path to chunk_inputs.pt")
-    parser.add_argument("--output_dir", required=True, help="Directory to write scene.glb")
-    parser.add_argument("--texture_size", type=int, default=4096)
-    parser.add_argument("--simplify_threshold", type=int, default=2_000_000)
+    parser.add_argument(
+        "--output_dir",
+        required=True,
+        help="Directory to write scene.glb (or scene_viewer.glb with --viewer).",
+    )
+    parser.add_argument(
+        "--viewer",
+        action="store_true",
+        help="Write scene_viewer.glb using viewer-friendly defaults: 100k faces per "
+        "chunk, 1024px textures, and remesh resolution 1024. Explicit values "
+        "override the preset.",
+    )
+    parser.add_argument(
+        "--texture_size",
+        type=int,
+        default=None,
+        help="Texture resolution per chunk (default: 4096, or 1024 with --viewer).",
+    )
+    parser.add_argument(
+        "--simplify_threshold",
+        type=int,
+        default=None,
+        help="Maximum faces per chunk (default: 2,000,000, or 100,000 with --viewer).",
+    )
     parser.add_argument(
         "--skip_fill_holes",
         action="store_true",
@@ -45,7 +69,12 @@ def main() -> None:
         action="store_true",
         help="Skip the global narrow-band DC remesh step.",
     )
-    parser.add_argument("--remesh_res", type=int, default=None)
+    parser.add_argument(
+        "--remesh_res",
+        type=int,
+        default=None,
+        help="Global remesh resolution (default: automatic, or 1024 with --viewer).",
+    )
     parser.add_argument("--remesh_band", type=float, default=1.0)
     parser.add_argument("--remesh_project", type=float, default=0.9)
     parser.add_argument(
@@ -85,7 +114,8 @@ def main() -> None:
         "--chunks_dir",
         default=None,
         help="Directory to save per-chunk GLBs as they're baked. Already-present chunks are "
-        "loaded from disk on rerun (resumable). Default: <output_dir>/chunks. "
+        "loaded from disk on rerun (resumable). Defaults to <output_dir>/chunks, or a "
+        "settings-specific viewer cache with --viewer. "
         "Pass --no_chunk_cache to disable.",
     )
     parser.add_argument(
@@ -95,6 +125,22 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    texture_size = (
+        args.texture_size if args.texture_size is not None else (1024 if args.viewer else 4096)
+    )
+    simplify_threshold = (
+        args.simplify_threshold
+        if args.simplify_threshold is not None
+        else (100_000 if args.viewer else 2_000_000)
+    )
+    remesh_res = args.remesh_res if args.remesh_res is not None else (1024 if args.viewer else None)
+    if texture_size <= 0:
+        parser.error("--texture_size must be positive")
+    if simplify_threshold <= 0:
+        parser.error("--simplify_threshold must be positive")
+    if remesh_res is not None and remesh_res <= 0:
+        parser.error("--remesh_res must be positive")
+
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -102,6 +148,10 @@ def main() -> None:
         chunks_save_dir = None
     elif args.chunks_dir is not None:
         chunks_save_dir = Path(args.chunks_dir)
+    elif args.viewer:
+        # Bake settings affect geometry and textures, so never reuse the full-quality
+        # chunk cache (or a cache produced with a different viewer preset).
+        chunks_save_dir = out_dir / f"chunks_viewer_s{simplify_threshold}_t{texture_size}_r{remesh_res}"
     else:
         chunks_save_dir = out_dir / "chunks"
 
@@ -119,6 +169,11 @@ def main() -> None:
         f"Loaded {args.chunk_inputs}: "
         f"{len(chunk_inputs['chunk_indices'])} chunks, "
         f"chunk_size_world={chunk_inputs['chunk_size_world']:.4f}"
+    )
+    print(
+        f"GLB preset: {'viewer' if args.viewer else 'full'}, "
+        f"simplify_threshold={simplify_threshold:,} faces/chunk, "
+        f"texture_size={texture_size}, remesh_res={remesh_res or 'auto'}"
     )
 
     if torch.cuda.is_available():
@@ -141,15 +196,15 @@ def main() -> None:
             do_fill_holes=not args.skip_fill_holes,
             hole_perim=args.hole_perim,
             do_remesh=not args.skip_remesh,
-            remesh_res=args.remesh_res,
+            remesh_res=remesh_res,
             remesh_band=args.remesh_band,
             remesh_project=args.remesh_project,
             smooth_iters=args.smooth_iters,
             smooth_lambda=args.smooth_lambda,
             smooth_mu=args.smooth_mu,
             smooth_feature_angle=args.smooth_feature_angle,
-            simplify_threshold=args.simplify_threshold,
-            texture_size=args.texture_size,
+            simplify_threshold=simplify_threshold,
+            texture_size=texture_size,
             dump_geometry_dir=out_dir if args.dump_geometry_plys else None,
             chunks_save_dir=chunks_save_dir,
             verbose=True,
@@ -163,7 +218,7 @@ def main() -> None:
     if args.dump_geometry_plys:
         print(f"\n[chunked_to_glb] dump-geometry mode: PLYs written to {out_dir}")
     else:
-        out_file = out_dir / "scene.glb"
+        out_file = out_dir / ("scene_viewer.glb" if args.viewer else "scene.glb")
         print(f"\n[chunked_to_glb] writing {out_file} ...")
         scene.export(str(out_file))
     print(f"[chunked_to_glb] total time: {elapsed:.1f}s")
