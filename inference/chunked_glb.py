@@ -188,7 +188,7 @@ def chunked_to_glb(
     smooth_lambda: float = 0.5,
     smooth_mu: float = -0.53,
     smooth_feature_angle: float = 25.0,
-    simplify_threshold: int = 5_000_000,
+    simplify_threshold: int | None = None,
     texture_size: int = 4096,
     dump_geometry_dir: str | Path | None = None,
     chunks_save_dir: str | Path | None = None,
@@ -370,10 +370,11 @@ def chunked_to_glb(
                 )
             continue
 
-        if n_chunk_faces > simplify_threshold:
-            decimation_target = simplify_threshold
-        else:
-            decimation_target = n_chunk_faces
+        decimation_target = (
+            min(n_chunk_faces, simplify_threshold)
+            if simplify_threshold is not None
+            else n_chunk_faces
+        )
 
         if verbose:
             print(

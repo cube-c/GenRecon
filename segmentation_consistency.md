@@ -279,6 +279,29 @@ ScanNet/ScanNet++ iPhone처럼 원본 순서가 있는 경우에만 SAM2Long/SAM
 
 따라서 GenRecon의 첫 구현은 **SAM2.1 proposal + 원본 mesh rasterization + MV3DIS식 depth/visibility-weighted graph + SAM2 re-prompt**로 잡는 것이 좋다. 이 경로는 모델 재학습 없이 현재 산출물에 붙일 수 있고, ScanNet++ 공식 3D instance annotation으로 검증할 수 있으며, 이후 PLY/GLB의 물체별 선택·표시에도 직접 연결된다.
 
+## GenRecon 실행 구현
+
+`inference/consistent_segmentation.py`는 위 P0 흐름 가운데 automatic proposal, 3D guide matching, region refinement, 재투영을 실행한다. MV3DIS 공식 저장소는 2026-07-14 현재 README만 공개되어 있으므로, 공개 논문과 supplementary의 식·알고리즘·ScanNet++ threshold를 직접 구현했다. `segments_anno.json`은 결과 평가에만 사용하며 mask association 입력에는 사용하지 않는다.
+
+필요한 SAM2.1 모델은 Meta의 공식 저장소와 checkpoint를 사용한다.
+
+```bash
+git clone --depth 1 https://github.com/facebookresearch/sam2.git /tmp/sam2
+SAM2_BUILD_CUDA=0 conda run -n trellis2 pip install hydra-core==1.3.2 iopath==0.1.10
+SAM2_BUILD_CUDA=0 conda run -n trellis2 pip install --no-build-isolation /tmp/sam2
+curl -L https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt \
+  -o checkpoints/sam2.1_hiera_small.pt
+```
+
+장면 하나는 다음과 같이 실행한다.
+
+```bash
+conda run -n trellis2 python inference/consistent_segmentation.py \
+  output/scannetpp/00a231a370_seed42_16views --device cuda:0
+```
+
+장면 단위로 독립적이므로 여러 GPU에서는 프로세스를 하나씩 병렬 실행한다. 예를 들어 두 예제는 GPU 0과 1에 각각 배치할 수 있다. 기본 출력은 `segmentation/masks_raw`, `segmentation/masks_consistent`, `segmentation/overlays_raw`, `segmentation/overlays`, `segmentation/visibility`, `instances.json`, `validation.json`, `mesh_instances.ply`이다. `overlays_raw`는 view별 SAM2 local ID를 보여주므로 view 사이에서 같은 색의 의미가 이어지지 않는다. consistent mask는 16-bit label PNG이며, `overlays`와 모든 view의 같은 uint16 값이 같은 3D instance를 뜻한다. 두 view 이상에서 직접 관측된 instance만 남기려면 `--min-cluster-views 2`를 추가한다.
+
 ## 주요 자료
 
 ### 2024

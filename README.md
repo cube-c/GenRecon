@@ -181,9 +181,11 @@ python reconstruct_scene.py \
 ```
 
 ### GLB conversion
-Bake the reconstructed scene into a single textured `scene.glb`. This reads the
+Bake the reconstructed scene into a single textured, undecimated `scene.glb`.
+This reads the
 `to_glb_inputs.pt` and `chunk_inputs.pt` written by `reconstruct_scene.py` into
-`--output_path`, and writes `scene.glb` to the same directory.
+`--output_path`, and writes `scene.glb` to the same directory. All post-remesh
+faces are preserved unless `--simplify_threshold` is explicitly provided.
 ```sh
 python chunked_to_glb.py \
     --inputs "${OUT_DIR}/to_glb_inputs.pt" \
@@ -191,9 +193,10 @@ python chunked_to_glb.py \
     --output_dir "${OUT_DIR}"
 ```
 
-For a smaller GLB intended for browser viewers, run the same conversion with
-`--viewer`. This writes `scene_viewer.glb` alongside the full-quality file and
-uses a separate chunk cache. The preset limits each chunk to 100,000 faces and
+To generate both the full scene and a smaller GLB intended for browser viewers,
+run the conversion with `--viewer`. This performs separate full and viewer
+passes, writing undecimated `scene.glb` and decimated `scene_viewer.glb` with
+separate chunk caches. The viewer preset limits each chunk to 100,000 faces and
 uses 1024px textures and remesh resolution 1024:
 ```sh
 python chunked_to_glb.py \
@@ -203,7 +206,7 @@ python chunked_to_glb.py \
     --viewer
 ```
 
-You can override either viewer default, for example with
+You can override the viewer defaults, for example with
 `--simplify_threshold 250000 --texture_size 2048` for higher quality.
 
 
